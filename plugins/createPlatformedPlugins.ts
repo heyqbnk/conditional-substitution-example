@@ -42,14 +42,25 @@ export function createPlatformedPlugins(platform: string): [
           // ios: ComponentB,
           // android: ComponentC
           // ```
-          // We have to return either "ComponentA", "ComponentB", or "ComponentC".
+          // We have to return either "ComponentA", "ComponentB", or "ComponentC" depending on
+          // the platform we are currently building for.
+          let commonValue: string;
           for (const line of content.trim().split(',')) {
             const [key, value] = line.split(':').map(v => v.trim());
             if (key === platform) {
               return value.trim();
             }
+            // Not to iterate twice, we memoize the common layer value, so we could use it
+            // in case there was no value found for the target platform. The common layer in this
+            // case is a fallback.
+            if (key === 'common') {
+              commonValue = value;
+            }
           }
-          this.error(`Unable to find override for platform "${platform}" in module "${id}". Content was: "${content}"`);
+          if (!commonValue) {
+            this.error(`Unable to find override for platform "${platform}" in module "${id}". Content was: "${content}"`);
+          }
+          return commonValue;
         });
       },
     },
