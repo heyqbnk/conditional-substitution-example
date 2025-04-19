@@ -1,0 +1,35 @@
+.text-field {
+  font-family: "SF Pro";
+
+  &__label {
+    display: block;
+    margin: 0;
+  }
+
+  &__input {
+    position: relative;
+    display: inline-block;
+    width: 400px;
+
+    &-input {
+      display: inline-block;
+      width: 100%;
+      height: 40px;
+      padding: 6px 12px;
+      box-sizing: border-box;
+      border: 1px solid #eee;
+      appearance: none;
+    }
+  }
+
+  &__placeholder {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    margin: 0;
+    padding: 0 12px;
+    pointer-events: none;
+  }
+}
