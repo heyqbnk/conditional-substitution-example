@@ -3,7 +3,7 @@ import solidPlugin from 'vite-plugin-solid';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import autoprefixer from 'autoprefixer';
 
-import { createPlatformedPlugins } from './plugins/createPlatformedPlugins';
+import { platformedPlugin } from './plugins/platformedPlugin';
 
 export default defineConfig(() => {
   const platform = process.env.PLATFORM || 'common';
@@ -13,7 +13,7 @@ export default defineConfig(() => {
   }
 
   return {
-    base: '/',
+    base: `/${platform}`,
     css: {
       preprocessorOptions: {
         scss: {
@@ -34,7 +34,7 @@ export default defineConfig(() => {
       // Allows using the compilerOptions.paths property in tsconfig.json.
       // https://www.npmjs.com/package/vite-tsconfig-paths
       tsconfigPaths(),
-      ...createPlatformedPlugins(platform, knownPlatforms),
+      platformedPlugin(platform, knownPlatforms),
     ],
     build: {
       emptyOutDir: true,
