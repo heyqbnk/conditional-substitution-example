@@ -1,10 +1,6 @@
 module 'virtual:platformed' {
   import { Component } from 'solid-js';
-  export type PlatformID = 'common' | 'ios';
+  export type PlatformID = 'common' | 'ios' | 'android';
 
-  export function platformed<P>(
-    overrides?: {
-      [Platform in PlatformID]?: Component<P>;
-    },
-  ): Component<P>;
+  export function platformed<P>(overrides: Partial<PlatformID, Component<P>>): Component<P>;
 }
