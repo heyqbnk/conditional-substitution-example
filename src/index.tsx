@@ -1,6 +1,7 @@
 /* @refresh reload */
 import { render } from 'solid-js/web';
-import { TextField } from '@/TextField/TextField.js';
+
+import { Root } from '@/Root/Root.js';
 
 const root = document.getElementById('root');
 
@@ -10,5 +11,5 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
   );
 }
 
-render(() => (<TextField/>), root!);
+render(() => (<Root/>), root!);
 
