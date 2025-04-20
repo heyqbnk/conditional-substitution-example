@@ -1,12 +1,11 @@
-import { App } from '@/App/App.js';
+import { AppPlatformed } from '@/App/App.platformed.js';
 
-import { GlobalStyles } from '@/GlobalStyles/GlobalStyles.js';
+import '@/GlobalStyles/GlobalStyles.platformed.js';
 
 export function Root() {
   return (
     <main class="root">
-      <GlobalStyles/>
-      <App/>
+      <AppPlatformed/>
     </main>
   )
 }
