@@ -1,22 +1,29 @@
 import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import autoprefixer from 'autoprefixer';
 
 import { createPlatformedPlugins } from './plugins/createPlatformedPlugins';
 
 export default defineConfig(() => {
   const platform = process.env.PLATFORM || 'common';
-  if (!['common', 'ios', 'android'].includes(platform)) {
+  const knownPlatforms = ['common', 'ios', 'android'];
+  if (!knownPlatforms.includes(platform)) {
     throw new Error(`Unexpected platform received: ${platform}`);
   }
 
   return {
-    base: '/solidjs-template',
+    base: '/',
     css: {
       preprocessorOptions: {
         scss: {
-          api: 'modern',
+          api: 'modern' as const,
         },
+      },
+      postcss: {
+        plugins: [
+          autoprefixer(),
+        ],
       },
     },
     plugins: [
@@ -27,7 +34,7 @@ export default defineConfig(() => {
       // Allows using the compilerOptions.paths property in tsconfig.json.
       // https://www.npmjs.com/package/vite-tsconfig-paths
       tsconfigPaths(),
-      ...createPlatformedPlugins(platform),
+      ...createPlatformedPlugins(platform, knownPlatforms),
     ],
     build: {
       emptyOutDir: true,
