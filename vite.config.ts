@@ -3,7 +3,7 @@ import solidPlugin from 'vite-plugin-solid';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import autoprefixer from 'autoprefixer';
 
-import { platformedPlugin } from './plugins/platformedPlugin';
+import { platformedPlugin } from './plugins/platformed/plugin';
 
 export default defineConfig(() => {
   const platform = process.env.PLATFORM || 'common';
