@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type UserConfigExport } from 'vitest/config';
 import solidPlugin from 'vite-plugin-solid';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import autoprefixer from 'autoprefixer';
@@ -11,6 +11,11 @@ export default defineConfig(() => {
   if (!knownPlatforms.includes(platform)) {
     throw new Error(`Unexpected platform received: ${platform}`);
   }
+
+  // Plugin doesnt need in tests
+  const appliedPlatformedPlugin = process.env.VITEST === 'true'
+    ? []
+    : [platformedPlugin(platform, knownPlatforms)];
 
   return {
     base: `/${platform}`,
@@ -34,7 +39,7 @@ export default defineConfig(() => {
       // Allows using the compilerOptions.paths property in tsconfig.json.
       // https://www.npmjs.com/package/vite-tsconfig-paths
       tsconfigPaths(),
-      platformedPlugin(platform, knownPlatforms),
+      ...appliedPlatformedPlugin,
     ],
     build: {
       emptyOutDir: true,
@@ -47,5 +52,19 @@ export default defineConfig(() => {
       // Exposes your dev server and makes it accessible for the devices in the same network.
       host: true,
     },
-  };
+    test: {
+      environment: 'node',
+      coverage: {
+        enabled: true,
+        provider: 'v8',
+        include: ['plugins/**/*.ts'],
+        thresholds: {
+          branches: 80,
+          functions: 80,
+          statements: 80,
+          lines: 80,
+        },
+      },
+    },
+  } satisfies UserConfigExport;
 });
