@@ -24,6 +24,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
+    "strictBindCallApply": true,
     "target": "ESNext",
     "types": [
       "vite/client"
