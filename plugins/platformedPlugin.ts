@@ -1,7 +1,9 @@
 import assert from 'node:assert';
-import { generate } from 'escodegen';
+import { parse } from '@babel/parser';
+import traverse from '@babel/traverse';
+import { generate } from '@babel/generator';
 import type { Plugin } from 'vite';
-import type { CallExpression, Identifier, ImportDeclaration, VariableDeclaration } from 'estree';
+import type { Identifier, ImportDeclaration } from '@babel/types';
 
 /**
  * Returns a plugin, responsible for code modifications related to the target built platform.
@@ -78,66 +80,98 @@ export function platformedPlugin(targetPlatform: string, knownPlatforms: string[
       // Remove import from "virtual:platformed".
       code = code.replace(RE_PLATFORMED_IMPORT, '');
 
-      const program = this.parse(code, { jsx: true });
-      const { body } = program;
+      const ast = parse(code, {
+        sourceType: 'module',
+        plugins: ['typescript', 'jsx'],
+      });
 
       // Collect information about all kinds of platformed imports.
-      const collectedData = body.reduce<{
+      const collectedData: {
         js: [platform: string, decl: ImportDeclaration][],
         css: [platform: string, decl: ImportDeclaration][],
-        platformed?: [decl: VariableDeclaration, expression: CallExpression]
-      }>((acc, decl) => {
+      } = { js: [], css: [] };
+
+      traverse.default(ast, {
         // In this block of code we are collecting all platformed imports.
-        if (decl.type === 'ImportDeclaration' && typeof decl.source.value === 'string') {
-          const match = decl.source.value.match(RE_DETECT_PLATFORM);
-          if (match) {
-            const [, platform, ext] = match;
-            let kind: 'js' | 'css';
-            if (['css', 'scss'].includes(ext)) {
-              kind = 'css';
-            } else if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) {
-              kind = 'js';
-            } else {
-              const message = `Unable to determine platformed import kind. Expected [jsx?, tsx?, s?css], but received "${ext}"`;
-              if (isBuild) {
-                this.error(message);
-              } else {
-                this.warn(`${message}. Import will not be omitted`);
-                return acc;
-              }
-            }
-            acc[kind].push([platform, decl]);
+        ImportOrExportDeclaration: ({ node }) => {
+          if (node.type !== 'ImportDeclaration') {
+            return;
           }
-        }
-
-        // Here we are going to find the "platformed(...)" call information.
-        let platformedDecl: VariableDeclaration | undefined;
-        if (decl.type === 'ExportNamedDeclaration' && decl.declaration.type === 'VariableDeclaration') {
-          platformedDecl = decl.declaration;
-        } else if (decl.type === 'VariableDeclaration') {
-          platformedDecl = decl;
-        }
-        if (platformedDecl) {
-          platformedDecl.declarations.forEach(({ init }) => {
-            if (
-              init.type !== 'CallExpression'
-              || init.callee.type !== 'Identifier'
-              || init.callee.name !== 'platformed'
-            ) {
-              return;
+          const match = node.source.value.match(RE_DETECT_PLATFORM);
+          if (!match) {
+            return;
+          }
+          const [, platform, ext] = match;
+          let kind: 'js' | 'css';
+          if (['css', 'scss'].includes(ext)) {
+            kind = 'css';
+          } else if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) {
+            kind = 'js';
+          } else {
+            const message = `Unable to determine platformed import kind. Expected [jsx?, tsx?, s?css], but received "${ext}"`;
+            if (isBuild) {
+              this.error(message);
             }
-            acc.platformed = [platformedDecl, init];
-          });
-        }
+            this.warn(`${message}. Import will not be omitted`);
+            return;
+          }
+          collectedData[kind].push([platform, node]);
+        },
+        // Here we are going to find the "platformed(...)" call information.
+        CallExpression: path => {
+          const { node } = path;
+          const { callee } = node;
+          if (callee.type !== 'Identifier' || callee.name !== 'platformed') {
+            return;
+          }
+          // If "platformed(...)" call was found, replace it with a single value based on
+          // the current platform.
+          const { arguments: args } = node;
+          if (args.length !== 1) {
+            this.error(`Unexpected count of arguments in platformed(...): ${args.length}`);
+          }
+          const [arg] = args;
+          if (arg.type !== 'ObjectExpression') {
+            this.error(`Unexpected argument in platformed(...): ${arg.type}`);
+          }
 
-        return acc;
-      }, { js: [], css: [] });
+          const { properties: argProperties } = arg;
+          const [commonComponent, targetComponent] = argProperties.reduce<[
+            commonComponent?: Identifier,
+            targetComponent?: Identifier
+          ]>((acc, prop) => {
+            if (prop.type !== 'ObjectProperty') {
+              this.error(`Unexpected property type in platformed(...): ${prop.type}`);
+            }
+            const { key: propKey, value: propValue } = prop;
+            if (propKey.type !== 'Identifier') {
+              this.error(`Unexpected property key type in platformed(...): ${propKey.type}`);
+            }
+            if (propValue.type !== 'Identifier') {
+              this.error(`Unexpected property value type in platformed(...): ${propValue.type}`);
+            }
+            const { name: propName } = propKey;
+            if (propName === 'common') {
+              acc[0] = propValue;
+            } else if (propName === targetPlatform) {
+              acc[1] = propValue;
+            }
+            return acc;
+          }, []);
+
+          if (!commonComponent && !targetComponent) {
+            this.error('Unable to determine component to use from platformed(...)');
+          }
+          path.replaceWith((targetComponent || commonComponent)!);
+        },
+      });
 
       // Iterate over all kinds of imports and do the following:
       // 1. Check if we have an import, specific to the target platform.
       // 2. If an import was found, we are removing all other platform-specific imports
       // related to other platforms.
       // 3. If no import was found, we are leaving only "common" platform-specific imports.
+      const { body } = ast.program;
       (['js', 'css'] as const).forEach(kind => {
         const kindImports = collectedData[kind];
         const hasTargetPlatformImport = kindImports.some(([platform]) => {
@@ -154,50 +188,9 @@ export function platformedPlugin(targetPlatform: string, knownPlatforms: string[
         });
       });
 
-      // If "platformed(...)" call was found, replace it with a single value based on
-      // the current platform.
-      const { platformed: platformedMeta } = collectedData;
-      if (platformedMeta) {
-        const [platformedDecl, { arguments: args }] = platformedMeta;
-        if (args.length !== 1) {
-          this.error(`Unexpected count of arguments in platformed(...): ${args.length}`);
-        }
-        const [arg] = args;
-        if (arg.type !== 'ObjectExpression') {
-          this.error(`Unexpected argument in platformed(...): ${arg.type}`);
-        }
-
-        const { properties: argProperties } = arg;
-        const [commonComponent, targetComponent] = argProperties.reduce<[
-          commonComponent?: Identifier,
-          targetComponent?: Identifier
-        ]>((acc, prop) => {
-          if (prop.type !== 'Property') {
-            this.error(`Unexpected property type in platformed(...): ${prop.type}`);
-          }
-          const { key: propKey, value: propValue } = prop;
-          if (propKey.type !== 'Identifier') {
-            this.error(`Unexpected property key type in platformed(...): ${propKey.type}`);
-          }
-          if (propValue.type !== 'Identifier') {
-            this.error(`Unexpected property value type in platformed(...): ${propValue.type}`);
-          }
-          const { name: propName } = propKey;
-          if (propName === 'common') {
-            acc[0] = propValue;
-          } else if (propName === targetPlatform) {
-            acc[1] = propValue;
-          }
-          return acc;
-        }, []);
-
-        if (!commonComponent && !targetComponent) {
-          this.error('Unable to determine component to use from platformed(...)');
-        }
-        platformedDecl.declarations[0].init = targetComponent || commonComponent;
-      }
-
-      return { code: generate(program), map: null };
+      // Generate the transformed code.
+      const output = generate(ast, {}, code);
+      return { code: output.code, map: null };
     },
   };
 }
