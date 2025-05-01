@@ -82,11 +82,12 @@ export function platformedPlugin(targetPlatform: string, knownPlatforms: string[
       const { body } = program;
 
       // Collect information about all kinds of platformed imports.
-      const platformedImports = body.reduce<{
+      const collectedData = body.reduce<{
         js: [platform: string, decl: ImportDeclaration][],
         css: [platform: string, decl: ImportDeclaration][],
         platformed?: [decl: VariableDeclaration, expression: CallExpression]
       }>((acc, decl) => {
+        // In this block of code we are collecting all platformed imports.
         if (decl.type === 'ImportDeclaration' && typeof decl.source.value === 'string') {
           const match = decl.source.value.match(RE_DETECT_PLATFORM);
           if (match) {
@@ -109,11 +110,11 @@ export function platformedPlugin(targetPlatform: string, knownPlatforms: string[
           }
         }
 
+        // Here we are going to find the "platformed(...)" call information.
         let platformedDecl: VariableDeclaration | undefined;
         if (decl.type === 'ExportNamedDeclaration' && decl.declaration.type === 'VariableDeclaration') {
           platformedDecl = decl.declaration;
-        }
-        if (decl.type === 'VariableDeclaration') {
+        } else if (decl.type === 'VariableDeclaration') {
           platformedDecl = decl;
         }
         if (platformedDecl) {
@@ -138,7 +139,7 @@ export function platformedPlugin(targetPlatform: string, knownPlatforms: string[
       // related to other platforms.
       // 3. If no import was found, we are leaving only "common" platform-specific imports.
       (['js', 'css'] as const).forEach(kind => {
-        const kindImports = platformedImports[kind];
+        const kindImports = collectedData[kind];
         const hasTargetPlatformImport = kindImports.some(([platform]) => {
           return platform === targetPlatform;
         });
@@ -153,7 +154,9 @@ export function platformedPlugin(targetPlatform: string, knownPlatforms: string[
         });
       });
 
-      const { platformed: platformedMeta } = platformedImports;
+      // If "platformed(...)" call was found, replace it with a single value based on
+      // the current platform.
+      const { platformed: platformedMeta } = collectedData;
       if (platformedMeta) {
         const [platformedDecl, { arguments: args }] = platformedMeta;
         if (args.length !== 1) {
