@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import autoprefixer from 'autoprefixer';
 
-import { platformedPlugin } from './plugins/platformedPlugin';
+import { platformedPlugin } from './plugins/platformedPlugin.js';
 
 export default defineConfig(() => {
   const platform = process.env.PLATFORM || 'common';
@@ -16,14 +15,7 @@ export default defineConfig(() => {
     base: `/${platform}`,
     css: {
       preprocessorOptions: {
-        scss: {
-          api: 'modern' as const,
-        },
-      },
-      postcss: {
-        plugins: [
-          autoprefixer(),
-        ],
+        scss: { api: 'modern' as const },
       },
     },
     plugins: [
